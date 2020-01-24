@@ -11,7 +11,7 @@ module Locomotive
       end
 
       def __attributes__
-        %i(name slug description label_field_name fields
+        %i(name slug description algolia_indexing_enabled label_field_name fields
           order_by order_direction group_by
           public_submission_enabled
           public_submission_accounts
@@ -36,6 +36,10 @@ module Locomotive
 
       def description
         self[:description]
+      end
+
+      def algolia_indexing_enabled
+        self[:algolia_indexing_enabled]
       end
 
       def order_by
