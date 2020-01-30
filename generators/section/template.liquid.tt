@@ -1,0 +1,217 @@
+---
+# Name of the section displayed in the editor UI
+# (only if keep_name is set to true)
+name: <%= config[:name] %>
+
+# By default, the first text type setting will be used as
+# the name of the section in the editor UI.
+# To keep the name of the section instead, uncomment the following line.
+# keep_name: true
+
+# Icon of the section in the editor UI
+# Values: <%= config[:all_icons].join(', ') %>
+icon: <%= config[:icon] || 'image_text' %>
+
+# By default, the first image_picker type setting will be used
+# as the icon of the section in the editor UI.
+# To keep the icon of the section instead, uncomment the following line.
+# keep_icon: true
+
+# Definition of the settings:
+# A setting type can be one of the following values: text, image_picker, checkbox, radio, select, url, hint, content_type.
+# Please visit: https://doc.locomotivecms.com/docs/json-definition for more explanation.
+settings:
+<%- config[:settings].each do |setting| -%>
+- label: "<%= setting.label %>"
+  id: <%= setting.id %>
+  type: <%= setting.type %>
+  <%- case setting.type -%>
+  <%- when 'text' -%>
+  # html: true
+  # line_break: true
+  <%- when 'select', 'radio' -%>
+  options:
+  - label: Option 1
+    value: option_1
+  - label: Option 2
+    value: option_2
+  <%- end -%>
+  <% if config[:global] && setting.has_value? -%>default: <%= setting.default %><% end -%>
+
+<%- end -%>
+# Definition of the blocks.
+# You can define as many types of blocks as you want.
+blocks: <%- if config[:blocks].blank? -%>[]
+<% end %>
+<%- config[:blocks].each do |(type, settings)| -%>
+- name: "<%= type.humanize %>"
+  type: <%= type %>
+  settings:
+  <%- settings.each do |setting| -%>
+  - label: "<%= setting.label %>"
+    id: <%= setting.id %>
+    type: <%= setting.type %>
+    <%- case setting.type -%>
+    <%- when 'text' -%>
+    # html: true
+    # line_break: true
+    <%- when 'select', 'radio' -%>
+    options:
+    - label: Option 1
+      value: option_1
+    - label: Option 2
+      value: option_2
+    <%- end -%>
+    <%- if setting.has_value? -%>
+    default: <%= setting.default %>
+    <%- end -%>
+  <%- end -%>
+
+<%- end -%>
+# By default, in the editor UI, blocks will be listed below the "Content" title.
+# The title can be changed with the following property:
+# blocks_label: "My list of items"
+
+<% unless config[:global] -%>
+# Presets can be seen as different versions of a same section.
+# Useless if the section is not aimed to be used along with section_dropzone liquid tag
+presets:
+  - name: "<%= config[:name] %>"
+    category: "Category"
+    settings:
+      <%- config[:settings].each do |setting| -%>
+      <%- next unless setting.has_value? -%>
+      <%= setting.id %>: <%= setting.default %>
+      <%- end -%>
+    blocks: <%- if config[:blocks].blank? -%>[]
+<% end %>
+    <%- 3.times do -%>
+    <%- config[:blocks].each do |(type, settings)| -%>
+    - type: <%= type %>
+      settings:
+        <%- settings.each do |setting| -%>
+        <%- next unless setting.has_value? -%>
+        <%= setting.id %>: <%= setting.default %>
+        <%- end -%>
+    <%- end -%>
+    <%- end -%>
+<% end %>
+---
+{% comment %}
+Above is the YAML definition of your section. Modify it to match your needs.
+
+<% if config[:global] -%>
+To use your global section, just add the following code in your layout template:
+
+  {% global_section '<%= config[:type] %>' %}
+
+<% else -%>
+To use your section, 2 possibilities:
+
+1. within a dropzone
+
+Make sure that your layouts or your page includes the following liquid tag:
+
+  {% sections_dropzone %}
+
+If you want to test this section in your Wagon site, add the following
+lines in the YAML section of any page including the {% sections_dropzone %}
+(or inheriting from a layout including it):
+
+sections_dropzone_content:
+- type: "<%= config[:type] %>"
+  settings:
+    <%- config[:settings].each do |setting| -%>
+    <%- next unless setting.has_value? -%>
+    <%= setting.id %>: <%= setting.default %>
+    <%- end -%>
+  blocks: <%- if config[:blocks].blank? -%>[]
+<% end %>
+  <%- 3.times do -%>
+  <%- config[:blocks].each do |(type, settings)| -%>
+  - type: <%= type %>
+    settings:
+      <%- settings.each do |setting| -%>
+      <%- next unless setting.has_value? -%>
+      <%= setting.id %>: <%= setting.default %>
+      <%- end -%>
+  <%- end -%>
+  <%- end -%>
+
+2. as stand-alone section
+
+  {% section '<%= config[:type] %>' %}
+
+If you want to test this section in your Wagon site, add the following
+lines in the YAML section of the page including the statement above or complete it.
+
+sections_content:
+  <%= config[:type] %>:
+    settings:
+      <%- config[:settings].each do |setting| -%>
+      <%- next unless setting.has_value? -%>
+      <%= setting.id %>: <%= setting.default %>
+      <%- end -%>
+    blocks: <%- if config[:blocks].blank? -%>[]
+<% end %>
+    <%- 3.times do -%>
+    <%- config[:blocks].each do |(type, settings)| -%>
+    - type: <%= type %>
+      settings:
+        <%- settings.each do |setting| -%>
+        <%- next unless setting.has_value? -%>
+        <%= setting.id %>: <%= setting.default %>
+        <%- end -%>
+    <%- end -%>
+    <%- end -%>
+
+<% end -%>
+{% endcomment %}
+<div id="{{ section.anchor_id }}" class="<%= config[:type].dasherize %>-section" {{ section.locomotive_attributes }}>
+  <h2>Section : <%= config[:name] %></h2>
+
+  <hr/>
+
+  <h3>Settings</h3>
+  <%- config[:settings].each do |setting| -%>
+  <%- next unless setting.has_value? -%>
+  <%- case setting.type -%>
+  <%- when 'text' %>
+  <div>{{ section.settings.<%= setting.id -%> }}</div>
+  <%- when 'image_picker' -%>
+  <p><img src="{{ section.settings.<%= setting.id -%> }}" /></p>
+  <%- when 'url' -%>
+  <p><a href="{{ section.settings.<%= setting.id -%> }}" {{ section.settings.<%= setting.id -%>.new_window_attribute }}><%= setting.label -%></a></p>
+  <%- when 'select', 'radio', 'checkbox' -%>
+  <p><%= setting.type -%>: {{ section.settings.<%= setting.id -%> }}</p>
+  <%- end -%>
+  <%- end -%>
+
+  <% unless config[:blocks].blank? -%>
+  <hr/>
+
+  <h3>Blocks</h3>
+  <ul>
+    {% for block in section.blocks %}
+    <li {{ block.locomotive_attributes }} data-index="{{ forloop.index0 }}">
+      <%- config[:blocks].each do |(type, settings)| -%>
+      <h4>Settings for <%= type.humanize -%></h4>
+      <%- settings.each do |setting| -%>
+      <%- next unless setting.has_value? -%>
+      <%- case setting.type -%>
+      <%- when 'text' %>
+      <div>{{ block.settings.<%= setting.id -%> }}</div>
+      <%- when 'image_picker' -%>
+      <p><img src="{{ block.settings.<%= setting.id -%> }}" /></p>
+      <%- when 'url' -%>
+      <p><a href="{{ block.settings.<%= setting.id -%> }}" {{ block.settings.<%= setting.id -%>.new_window_attribute }}><%= setting.label -%></a></p>
+      <%- when 'select', 'radio', 'checkbox' -%>
+      <p><%= setting.type -%>: {{ block.settings.<%= setting.id -%> }}</p>
+      <%- end -%>
+      <%- end -%>
+      <%- end -%>
+    </li>
+    {% endfor %}
+  </ul>
+  <% end %>
+</div>

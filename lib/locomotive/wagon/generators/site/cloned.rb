@@ -10,18 +10,7 @@ module Locomotive
           argument :connection_info
 
           def copy_sources
-            directory('.', self.destination, { recursive: true }, {
-              name:     self.name,
-              version:  Locomotive::Wagon::VERSION
-            }.merge(self.connection_info))
-          end
-
-          def bundle_install
-            super
-          end
-
-          def comment_gemfile
-            false
+            copy_sources_from_generator(generator_name: 'cloned', options: self.connection_info)
           end
 
         end

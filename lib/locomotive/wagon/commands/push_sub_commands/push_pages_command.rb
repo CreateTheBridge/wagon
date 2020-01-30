@@ -118,14 +118,23 @@ module Locomotive::Wagon
     end
 
     def skip?(entity)
+      # not deployable?
+      return true if entity[:deployable] == false
+
+      # filter enabled?
       return false if @only_entities.blank?
 
       template_path = entity.template_path[default_locale]
 
+      # no template path (use case: deploying new pages from a different env)
+      return true if template_path.nil?
+
+      # not localized?
       return true if template_path == false
 
-      _path = template_path.gsub('./app/views/pages/', '')
 
+      # part of the filter?
+      _path = template_path.gsub('./app/views/pages/', '')
       !@only_entities.any? { |regexp| regexp.match(_path) }
     end
 

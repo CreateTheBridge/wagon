@@ -11,12 +11,13 @@ module Locomotive
       end
 
       def __attributes__
-        %i(name slug description algolia_indexing_enabled label_field_name fields
+        %i(name slug description algolia_indexing_enabled label_field_name tree_parent_field_name fields
           order_by order_direction group_by
           public_submission_enabled
           public_submission_accounts
           public_submission_title_template
-          entry_template display_settings filter_fields)
+          public_submission_email_attachments
+          recaptcha_required entry_template display_settings filter_fields)
       end
 
       def fields
@@ -62,6 +63,10 @@ module Locomotive
         self[:public_submission_title_template]
       end
 
+      def public_submission_email_attachments
+        self[:public_submission_email_attachments]
+      end
+
       def entry_template
         self[:entry_template]
       end
@@ -72,6 +77,14 @@ module Locomotive
 
       def filter_fields
         self[:filter_fields]
+      end
+
+      def tree_parent_field_name
+        self[:tree_parent_field_name]
+      end
+
+      def recaptcha_required
+        self[:recaptcha_required]
       end
 
       def with_relationships?

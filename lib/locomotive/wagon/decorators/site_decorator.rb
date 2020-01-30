@@ -1,12 +1,18 @@
 module Locomotive
   module Wagon
 
-    class SiteDecorator < SimpleDelegator
+    class SiteDecorator < Locomotive::Steam::Decorators::I18nDecorator
 
       include ToHashConcern
       include PersistAssetsConcern
 
-      attr_accessor :__content_assets_pusher__
+      attr_accessor :__base_path__, :__content_assets_pusher__
+
+      def initialize(object, locale = nil, base_path = nil, content_assets_pusher = nil)
+        self.__base_path__ = base_path
+        self.__content_assets_pusher__ = content_assets_pusher
+        super(object, locale || object.default_locale, nil)
+      end
 
       def domains
         (__getobj__.domains || []) - ['localhost']
@@ -22,7 +28,15 @@ module Locomotive
 
       def metafields
         replace_with_content_assets_in_hash!(self[:metafields])
-        self[:metafields].try(:to_json)
+        self[:metafields]&.to_json
+      end
+
+      def sections_content
+        replace_with_content_assets!(super&.to_json)
+      end
+
+      def routes
+        self[:routes]&.to_json
       end
 
       def picture
@@ -34,15 +48,19 @@ module Locomotive
         end
       end
 
-      %i(robots_txt timezone seo_title meta_keywords meta_description).each do |name|
+      %i(robots_txt timezone seo_title meta_keywords meta_description asset_host routes).each do |name|
         define_method(name) do
           self[name]
         end
       end
 
       def __attributes__
-        %i(name handle robots_txt locales timezone seo_title meta_keywords meta_description picture metafields_schema metafields metafields_ui)
+        %i(name handle robots_txt locales timezone seo_title meta_keywords meta_description picture metafields_schema metafields metafields_ui asset_host sections_content routes)
       end
+
+    end
+
+    class RemoteSiteDecorator < SimpleDelegator
 
       def edited?
         (self[:content_version].try(:to_i) || 0) > 0
@@ -53,7 +71,7 @@ module Locomotive
     class UpdateSiteDecorator < SiteDecorator
 
       def __attributes__
-        %i(picture locales metafields_schema metafields metafields_ui)
+        %i(picture timezone locales metafields_schema metafields metafields_ui asset_host sections_content routes)
       end
 
     end

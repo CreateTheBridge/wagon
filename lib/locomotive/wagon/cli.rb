@@ -110,13 +110,11 @@ module Locomotive
 
         desc 'page FULLPATH', 'Create a page. No need to pass an extension to the FULLPATH arg'
         method_option :title,         aliases: '-t', type: 'string',    default: nil, desc: 'Title of the page'
-        method_option :haml,          aliases: '-h', type: 'boolean',   default: nil, desc: 'add a HAML extension to the file'
         method_option :listed,        aliases: '-l', type: 'boolean',   default: false, desc: 'tell if the page is listed in the menu'
         method_option :content_type,  aliases: '-c', type: 'string',    default: nil, desc: 'tell if the page is a template for a content type'
         method_option :locales,       aliases: '-lo', type: 'string',   default: nil, desc: 'locales for the various translations'
         long_desc <<-LONGDESC
-          Create a page. The generator will ask for the extension (liquid or haml) and also
-          if the page is localized or not.
+          Create a page. The generator will ask if the page is localized or not.
 
           Examples:
 
@@ -135,8 +133,7 @@ module Locomotive
 
         desc 'snippet SLUG', 'Create a snippet'
         long_desc <<-LONGDESC
-          Create a snippet. The generator will ask for the extension (liquid or haml) and also
-          if the snippet is localized or not.
+          Create a snippet. The generator will ask if the snippet is localized or not.
 
           Example:
 
@@ -151,12 +148,49 @@ module Locomotive
           end
         end
 
+        desc 'section SLUG SETTINGS', 'Create a section'
+        long_desc <<-LONGDESC
+          Create a section. The generator will ask if the section is global or not.
+
+          Example:
+
+            * wagon generate section hero
+            * wagon generate section carousel -i slide title:text block:slide:title:text block:slide:image:image_picker
+        LONGDESC
+        method_option :global,    aliases: '-g', type: 'boolean',   default: nil, desc: 'tell if the section is global'
+        method_option :icon,      aliases: '-i', type: 'string',    default: nil, desc: 'icon displayed the back-office'
+        def section(slug, *settings)
+          force_color_if_asked(options)
+
+          if path = check_path!
+            Locomotive::Wagon.generate :section, [slug, settings, path], self.options
+          end
+        end
+
+        desc 'public_form', 'Generate a public form like a contact form'
+        def public_form
+          force_color_if_asked(options)
+
+          if path = check_path!
+            Locomotive::Wagon.generate :public_form, [path], self.options
+          end
+        end
+
         desc 'site_metafields', 'Generate the missing file to describe the site metafields'
         def site_metafields
           force_color_if_asked(options)
 
           if path = check_path!
             Locomotive::Wagon.generate :site_metafields, [path], self.options
+          end
+        end
+
+        desc 'webpack', 'Add Webpack to your v3.x Wagon site'
+        def webpack
+          force_color_if_asked(options)
+
+          if path = check_path!
+            Locomotive::Wagon.generate :webpack, [path], self.options
           end
         end
 
@@ -201,22 +235,20 @@ module Locomotive
         end
 
         desc 'init NAME [PATH] [GENERATOR_OPTIONS]', 'Create a brand new site'
-        method_option :template,    aliases: '-t', type: 'string', default: 'blank', desc: 'instead of building from a blank site, you can also have a pre-fetched site from a template (see the templates command)'
         method_option :lib,         aliases: '-l', type: 'string', desc: 'Path to an external ruby lib or generator'
-        method_option :skip_bundle, type: 'boolean', default: false, desc: "Don't run bundle install"
         method_option :verbose,     aliases: '-v', type: 'boolean', default: false, desc: 'display the full error stack trace if an error occurs'
         def init(name, path = '.', *generator_options)
           force_color_if_asked(options)
           require 'locomotive/wagon/generators/site'
           require File.expand_path(options[:lib]) if options[:lib]
-          generator = Locomotive::Wagon::Generators::Site.get(options[:template])
+          generator = Locomotive::Wagon::Generators::Site.get(:blank)
           if generator.nil?
             say "Unknown site template '#{options[:template]}'", :red
             exit(1)
           else
             begin
-              if Locomotive::Wagon.init(generator.klass, [name, path, options[:skip_bundle].to_s, *generator_options], { force_color: options[:force_color] })
-                self.print_next_instructions_when_site_created(name, path, options[:skip_bundle])
+              if Locomotive::Wagon.init(generator.klass, [name, path, *generator_options], { force_color: options[:force_color] })
+                self.print_next_instructions_when_site_created(name, path)
               end
             rescue GeneratorException => e
               self.print_exception(e, options[:verbose])
@@ -274,8 +306,9 @@ module Locomotive
         desc 'serve [PATH]', 'Serve a site from the file system'
         option :host, aliases: '-h', type: 'string', default: '0.0.0.0', desc: 'The host (address) of the Thin server'
         option :port, aliases: '-p', type: 'string', default: '3333', desc: 'The port of the Thin server'
+        option :env, aliases: '-e', type: 'string', default: 'local', desc: 'The env used to the data of the pages and content entries'
         option :daemonize, aliases: '-d', type: 'boolean', default: false, desc: 'Run daemonized Thin server in the background'
-        option :live_reload_port, aliases: '-l', type: 'string', default: '35729', desc: 'The port the LiveReload javascript lib needs to listen for changes (35729 by default)'
+        option :force_polling, aliases: '-o', type: 'boolean', default: false, desc: 'Force polling of files for reload'
         option :force, aliases: '-f', type: 'boolean', default: false, desc: 'Stop the current daemonized Thin server if found before starting a new one'
         option :verbose, aliases: '-v', type: 'boolean', default: false, desc: 'Display the full error stack trace if an error occurs'
         option :debug, type: 'boolean', default: false, desc: 'Display some debugging information (rack middleware stack)'
@@ -308,6 +341,7 @@ module Locomotive
         option :resources, aliases: '-r', type: 'array', default: nil, desc: 'Only push the resource(s) passed in argument'
         option :filter, aliases: '-f', type: 'array', default: nil, desc: 'Push specific resource entries'
         option :data, aliases: '-d', type: 'boolean', default: false, desc: 'Push the content entries and the editable elements (by default, they are not)'
+        option :env, aliases: '-e', type: 'string', default: 'local', desc: 'The env used to the data of the pages and content entries'
         option :shell, type: 'boolean', default: true, desc: 'Use shell to ask for missing connection information like the site handle (in this case, take a random one)'
         option :verbose, aliases: '-v', type: 'boolean', default: false, desc: 'display the full error stack trace if an error occurs'
         def deploy(env, path = '.')
@@ -353,7 +387,7 @@ module Locomotive
 
         desc 'delete ENV RESOURCE [SLUG] [PATH]', 'Delete a resource from a remote Locomotive Engine.'
         long_desc <<-LONGDESC
-          Deletes a site, page, content_type, snippet, theme_asset or translation from the remote Locomotive Engine.
+          Deletes a site, page, content_type, snippet, section, theme_asset or translation from the remote Locomotive Engine.
 
           It can also delete all the items of a resource if you pass: content_types, snippets, theme_assets or translations as the RESOURCE.
 
@@ -380,17 +414,21 @@ module Locomotive
         #
         # @param [ String ] name The name of the site
         # @param [ String ] path The path of the local site
-        # @param [ Boolean ] skip_bundle Do not run bundle install
+        # @param [ Boolean ] assets True (default) if we want to display the instructions about Webpack
         #
-        def print_next_instructions_when_site_created(name, path, skip_bundle)
+        def print_next_instructions_when_site_created(name, path, assets = true)
           say "\nCongratulations, your site \"#{name}\" has been created successfully !", :green
-          say 'Next steps:', :bold
-
-          next_instructions = "\tcd #{path}/#{name}\n\t"
-          next_instructions += "bundle install\n\t" unless skip_bundle
-          next_instructions += "#{'bundle exec ' unless skip_bundle}wagon serve\n\topen http://0.0.0.0:3333"
-
-          say next_instructions
+          say "\nNext steps:\n", :bold
+          say "\n# Run the local web server", :on_blue
+          say "\n\tcd #{path}/#{name}"
+          say "\twagon serve"
+          if assets
+            say "\n# Compile assets (in a another terminal, use tmux for instance)", :on_blue
+            say "\n\tyarn"
+            say "\tyarn start"
+          end
+          say "\n# Preview your site!", :on_blue
+          say "\n\topen http://0.0.0.0:3333\n\n", :bold
         end
 
         # Print the exception.

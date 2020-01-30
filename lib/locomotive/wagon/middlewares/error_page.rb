@@ -1,6 +1,6 @@
 require 'erb'
+require 'locomotive/steam/middlewares/concerns/helpers'
 require 'locomotive/steam/middlewares/thread_safe'
-require 'locomotive/steam/middlewares/helpers'
 
 module Locomotive::Wagon
   module Middlewares
@@ -9,14 +9,15 @@ module Locomotive::Wagon
     #
     class ErrorPage < Locomotive::Steam::Middlewares::ThreadSafe
 
-      include Locomotive::Steam::Middlewares::Helpers
+      include Locomotive::Steam::Middlewares::Concerns::Helpers
 
       def _call
         begin
           self.next
         rescue StandardError => error
-          @error = error
-          puts error.inspect
+          @error      = error
+          @file_name  = get_error_file_name(error)
+
           log_error
           render_error_page
         end
@@ -27,6 +28,19 @@ module Locomotive::Wagon
       def log_error
         log "Error: #{@error.message}".red
         log @error.backtrace.join("\n")
+      end
+
+      def get_error_file_name(error)
+        return nil unless error.respond_to?(:template_name)
+
+        site_path = Locomotive::Steam.configuration.adapter[:path]
+
+        case error.template_name
+        when /^(snippets|sections)--(.+)$/
+          File.join(site_path, "app/views/#{$1}/#{$2}.liquid")
+        else
+          error.template_name
+        end
       end
 
       def render_error_page
@@ -80,7 +94,27 @@ module Locomotive::Wagon
         pre strong {
           margin-right: 20px;
         }
+
+        .backtrace-title {
+          cursor: pointer;
+        }
+
+        .backtrace-title {
+          display: block;
+        }
+
+        .backtrace.hidden {
+          display: none;
+        }
       </style>
+      <script>
+        document.addEventListener('DOMContentLoaded', function() {
+          var el = document.querySelector('h3.backtrace-title');
+          el.onclick = function() {
+            document.querySelector('.backtrace').classList.toggle('hidden');
+          }
+        });
+      </script>
     </head>
 
     <body>
@@ -89,13 +123,13 @@ module Locomotive::Wagon
       <div>
         <h2><%= @error.message %></h2>
 
-        <% if @error.respond_to?(:file) %>
-          <h3>File:</h3>
-          <p><%= @error.file %></p>
+        <% if @file_name %>
+          <h3>File</h3>
+          <p><%= @file_name %></p>
         <% end %>
 
         <% if @error.respond_to?(:action) %>
-          <h3>Action:</h3>
+          <h3>Action</h3>
           <p><%= @error.action %></p>
         <% end %>
 
@@ -110,8 +144,8 @@ module Locomotive::Wagon
           <p><i>No code</i></p>
         <% end %>
 
-        <h3>Backtrace</h3>
-        <p><%= @error.backtrace.join("<br/>") %></p>
+        <h3 class="backtrace-title">Backtrace <small>(click here to display it)</small></h3>
+        <p class="backtrace hidden"><%= @error.backtrace.join("<br/>") %></p>
       </div>
 
     </body>

@@ -18,31 +18,31 @@ module Locomotive::Wagon
     end
 
     def start
-      # make sure the Thin server is not running
+      # make sure a server is not running
       stop(true) if options[:force]
 
       # Steam is our rendering engine
       require_steam
 
-      if options[:daemonize]
-        daemonize
-      else
-        setup_signals
+      # in case the developer installed custom libs
+      Locomotive::Wagon.require_misc_gems
 
-        show_start_message
+      setup_signals
 
-        show_rack_middleware_stack if options[:debug]
-      end
+      show_start_message
+
+      show_rack_middleware_stack if options[:debug]
 
       # if a page, a content type or any resources of the site is getting modified,
       # then the cache of Steam will be cleared.
-      listen if @parent_pid.nil? || Process.pid != @parent_pid
+      listen
 
       # let's start!
-      server.start
-
-    rescue SystemExit => e
-      show_start_message if @parent_pid == Process.pid
+      begin
+        server.start
+      rescue NoMethodError # Prevent the NilClass error from Puma to be displayed
+        nil
+      end
     end
 
     def stop(force = false)
@@ -66,9 +66,7 @@ module Locomotive::Wagon
       require 'haml'
       require 'locomotive/steam'
       require 'locomotive/steam/server'
-      require 'locomotive/wagon/middlewares/error_page'
-      require 'bundler'
-      Bundler.require 'misc'
+      require 'locomotive/wagon/middlewares/error_page'      
 
       configure_logger
 
@@ -76,14 +74,9 @@ module Locomotive::Wagon
 
       Locomotive::Steam.configure do |config|
         config.mode           = :test
-        config.adapter        = { name: :filesystem, path: File.expand_path(path) }
+        config.adapter        = { name: :filesystem, path: File.expand_path(path), env: options[:env]&.to_sym || :local }
         config.asset_path     = File.expand_path(File.join(path, 'public'))
         config.minify_assets  = false
-
-        if (port = options[:live_reload_port]).to_i > 0
-          require 'rack-livereload'
-          config.middleware.insert_before Rack::Lint, Rack::LiveReload, live_reload_port: port
-        end
 
         config.middleware.insert_before Rack::Lint, Locomotive::Wagon::Middlewares::ErrorPage
 
@@ -94,55 +87,39 @@ module Locomotive::Wagon
             end
           end
         }
-      end
-    end
-
-    def daemonize
-      # very important to get the parent pid in order to differenciate the sub process from the parent one
-      @parent_pid = Process.pid
-
-      # The Daemons gem closes all file descriptors when it daemonizes the process. So any logfiles that were opened before the Daemons block will be closed inside the forked process.
-      # So, close the current logger and set it up again when daemonized.
-      Locomotive::Common::Logger.close
-
-      server.log_file = server_log_file
-      server.pid_file = server_pid_file
-
-      server.daemonize
-
-      # A "new logger" inside the daemon.
-      configure_logger if Process.pid != @parent_pid
+      end              
     end
 
     def listen
-      require_relative '../tools/listen'
-      require 'locomotive/steam/adapters/filesystem/simple_cache_store'
+      require 'puma/plugin'
 
-      cache = Locomotive::Steam::Adapters::Filesystem::SimpleCacheStore.new
+      Puma::Plugins.add_background -> {
+        require_relative '../tools/listen'
+        require 'locomotive/steam/adapters/filesystem/simple_cache_store'
 
-      Locomotive::Wagon::Listen.start(path, cache)
+        cache = Locomotive::Steam::Adapters::Filesystem::SimpleCacheStore.new
+
+        Locomotive::Wagon::Listen.start(path, cache, options)
+      }
     end
 
     def server
-      @server ||= build_server
+      @server ||= build_puma_server
     end
 
-    def build_server
-      # TODO: new feature -> pick the right Rack handler (Thin, Puma, ...etc)
-      require 'thin'
+    def build_puma_server
+      require 'rack/handler/puma'
 
-      # Do not display the default Thin server startup message
-      Thin::Logging.logger = Logger.new(server_log_file)
-
-      # Thin in debug mode only if the THIN_DEBUG_ON has been set in the shell
-      Thin::Logging.debug = ENV['THIN_DEBUG_ON']
-
-      app = Locomotive::Steam.to_app
-
-      Thin::Server.new(options[:host], options[:port], { signals: false }, app).tap do |server|
-        server.threaded = true
-        server.log_file = server_log_file
-      end
+      Rack::Handler::Puma.run(Locomotive::Steam.to_app, {
+        daemon:           options[:daemonize],
+        pidfile:          server_pid_file,
+        redirect_stdout:  options[:daemonize] ? server_log_file : nil,
+        Threads:          ENV['PUMA_THREADS'] || '1:4',
+        Host:             options[:host],
+        Port:             options[:port],
+        Verbose:          ENV['PUMA_DEBUG_ON'] || false,
+        Silent:           true
+      })
     end
 
     def configure_logger

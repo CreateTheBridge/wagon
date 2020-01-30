@@ -1,7 +1,9 @@
 .DS_Store
+TODO.md
 tests
 .sass-cache
 .rbenv-gemsets
+.ruby-version
 /site
 *.gem
 *.rbc
@@ -29,5 +31,7 @@ spec/fixtures/default/log
 /tests
 
 /deprecated
+bin/wagon_dev
 
 dragonfly.log
+spec/fixtures/default/.byebug_history

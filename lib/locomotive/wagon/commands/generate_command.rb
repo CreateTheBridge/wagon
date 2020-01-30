@@ -7,8 +7,8 @@ module Locomotive::Wagon
     end
 
     def generate
-      Bundler.require 'misc'
-
+      Locomotive::Wagon.require_misc_gems
+      
       generator = generator_klass.new(args, options, { behavior: :skip })
       generator.destination_root = args.last
       generator.force_color_if_asked(options)
